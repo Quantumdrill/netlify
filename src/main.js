@@ -1,12 +1,9 @@
 import * as THREE from "three"
-import {basicMesh,standardMesh,phongMesh,lambertMesh,physicalMesh} from "./defaultMeshes.js"
 import {pointLight,directionalLight} from "./light.js"
 import Model from "./model.js"
 import { texture } from "three/tsl"
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { CCDIKSolver } from "three/examples/jsm/Addons.js"
 import {manager} from "./manager.js"
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { getBoneIndex, create3JointIK, orientConstraint, pointConstraint, aimConstraint, getSkinnedMeshSkeleton, poleVectorConstraint } from "./functions.js"
 import {gsap} from "gsap"
 
@@ -14,9 +11,8 @@ const scene = new THREE.Scene()
 const renderer = new THREE.WebGLRenderer({antialias:true})
 const fov = 23
 const cam = new THREE.PerspectiveCamera(fov, window.innerWidth/window.innerHeight,0.1,1000)
-// const camControls = new OrbitControls( cam, renderer.domElement );
 cam.position.set(0,13,15)
-let clock = new THREE.Clock()
+const clock = new THREE.Clock()
 const loadingManager = manager()
 const modelLoader = new FBXLoader(loadingManager);
 const char = {}
@@ -32,7 +28,7 @@ function init(){
     scene.add(lights.key)
 
     // char rig model load
-    modelLoader.load("/rig.fbx",(loaded)=>{
+    modelLoader.load("/rig_righthandPosed.fbx",(loaded)=>{
         char.mesh = loaded
         const charMat = new THREE.MeshPhongMaterial({
             color: 0xffffff,
@@ -44,11 +40,11 @@ function init(){
         })
         getSkinnedMeshSkeleton(char.mesh)
         char.mesh.skinnedMesh.material = charMat
-        const helper = new THREE.SkeletonHelper(char.mesh)
-        
         scene.add(char.mesh)
 
         char.IkSolver = create3JointIK(char.mesh.skinnedMesh,char.mesh.skeleton,["ikHandle","hand_R","elbow_R","shoulder_R"])
+
+        //assign important bones
         char.ikHandle = char.mesh.skeleton.bones[getBoneIndex(char.mesh.skeleton,"ikHandle")]
         char.rootBone = char.mesh.skeleton.bones[getBoneIndex(char.mesh.skeleton,"root")]
         char.shoulder = char.mesh.skeleton.bones[getBoneIndex(char.mesh.skeleton,"shoulder_R")]
@@ -86,11 +82,12 @@ function init(){
         document.addEventListener("mousemove",e=>{
             anims.x = (e.clientX/window.innerWidth*2-1)*(window.innerWidth/window.innerHeight) // get x position -1*ratio to 1*ratio
             anims.y = -(e.clientY/window.innerHeight*2-1) // get y position: -1 to 1
-            anims.pointerY = anims.y*anims.curserToPointerMultiplier + anims.camHeight // the local space of the root bone is x up, z side
+            anims.pointerY = anims.y*anims.curserToPointerMultiplier + anims.camHeight
             anims.pointerX = anims.x*anims.curserToPointerMultiplier
             anims.pointerPos.setComponent(0,anims.pointerX)
             anims.pointerPos.setComponent(1,anims.pointerY)
 
+            //fk rotation mapping
             char.hip.rotation.y = (anims.x+0.2)*0.1
             char.hip.position.x = char.hip.restPos.y+(Math.abs(anims.x+0.2)+anims.y)*0.7
             char.spine1.rotation.y = (anims.x+0.2)*0.15
@@ -98,7 +95,6 @@ function init(){
             char.pv.position.x = (anims.x-1)*2
             char.pv.position.z = (anims.x+2)*3
             char.pv.position.y = (anims.y+anims.x)*5
-            console.log(char.pv.position)
             char.head.rotation.z = (anims.y)*0.3
             char.head.rotation.x = (anims.x)*0.1
 
@@ -130,9 +126,9 @@ function clickWristUpdate(){
     aimConstraint(char.hand,anims.wristToFingerTipVec,anims.wristUpV,char.elbow,true,new THREE.Vector3(-7,1,0.5),anims.wristUpV)
 }
 
-function clickAnim(){
+function clickPokeAnim(){
     if (!anims.tlUp.isActive()&&!anims.tlDown.isActive()&&anims.mousedown === true&&anims.releasable === false){ 
-        anims.releasable = true // releasable is used to make sure the anim is fired only once
+        anims.releasable = true // releasable is used to make sure the poke anim is fired only once
         anims.tlDown = gsap.timeline()
         anims.tlDown.to(char.ikHandle.position,{
             y: "-="+anims.pointerClickDist*0.7,
@@ -179,9 +175,7 @@ function anim(){
     
     poleVectorConstraint(char.ikHandle,char.hand,char.elbow,char.shoulder,char.pv,char.shoulderParent,new THREE.Euler())
     char.IkSolver.update()
-    clickAnim()
-
-    // camControls.update()
+    clickPokeAnim()
 
     renderer.render(scene,cam)
     requestAnimationFrame(anim)

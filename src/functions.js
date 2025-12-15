@@ -1,6 +1,7 @@
 import * as THREE from "three"
 import { CCDIKSolver } from "three/examples/jsm/Addons.js"
 
+//get the index of the bone in the bones array by name, useful in the ik creation
 export function getBoneIndex(skeleton,name){
     let output
     skeleton.bones.forEach((bone,i) => {
@@ -11,8 +12,9 @@ export function getBoneIndex(skeleton,name){
     return output
 }
 
+//find the skinnedmesh and skeleton objects and assign them to variables
 export function getSkinnedMeshSkeleton(imported){
-    imported.children.forEach(child=>{  //get skeleton and skinnedMesh from imported object
+    imported.children.forEach(child=>{
         if(child.isBone!==true){
             imported.skinnedMesh=child
             imported.skeleton=child.skeleton
@@ -20,6 +22,7 @@ export function getSkinnedMeshSkeleton(imported){
     }) 
 }
 
+//create ik system
 export function create3JointIK(skinnedMesh,skeleton,[target,effector,midJoint,topJoint]){
     const iks = [{
         target: getBoneIndex(skeleton,target),
@@ -33,7 +36,8 @@ export function create3JointIK(skinnedMesh,skeleton,[target,effector,midJoint,to
     return new CCDIKSolver(skinnedMesh,iks)
 }
 
-export function orientConstraint(driver,child,parent){ //world orientation to local, aka orient constraint
+//world orientation to local, aka orient constraint
+export function orientConstraint(driver,child,parent){ 
     let driver_WR
     if (driver.isQuaternion || driver.isEuler){ // depends on if the upv is a vector or an object
         driver_WR = driver
@@ -45,7 +49,8 @@ export function orientConstraint(driver,child,parent){ //world orientation to lo
     child.updateMatrix()
 }
 
-export function pointConstraint(world,child,parent){ //world position to local, aka point constraint
+//world position to local, aka point constraint
+export function pointConstraint(world,child,parent){ 
     let worldPos
     if (world.isVector3){ // depends on if the upv is a vector or an object
         worldPos = world
@@ -58,9 +63,10 @@ export function pointConstraint(world,child,parent){ //world position to local, 
     child.position.copy(localPos)
 }
 
+//let object aim at a direction with keeping a certain roll angle
 export function aimConstraint(obj,target,upv,parent=new THREE.Vector3(0,0,0),targetIsLocal=true,frontAxis=new THREE.Vector3(0,0,1),upAxis=new THREE.Vector3(0,1,0)){
     // the targetV .makeBasis() takes in is a local vector
-    // the frontAxis & upAxis is used to determine which direction of the object is self is considered the front and the side, default is z front, y up, just like how threejs defines
+    // the frontAxis & upAxis is used to determine which direction of the object itself is considered the front and the side, default is z front, y up, just like how threejs defines
     let upV = upv
     let targetV
     let frontA = frontAxis
@@ -83,7 +89,6 @@ export function aimConstraint(obj,target,upv,parent=new THREE.Vector3(0,0,0),tar
     //axis offset is the offset from the desired front & up basic to the default basic of z front and y up
     let axisOffset = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(sideA,upA,frontA)).invert()
     let aimQuat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(sideV,upV,targetV)).multiply(axisOffset)
-    let aimQuat2 = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(sideV,upV,targetV))
     orientConstraint(aimQuat,obj,parent)
 }
 
@@ -96,11 +101,10 @@ export function poleVectorConstraint(ik,eff,elbow,shoulder,pv,parent){
 
     let shoulderToPV = new THREE.Vector3().subVectors(pvPos,shoulderPos)
     let shoulderToIK = new THREE.Vector3().subVectors(ikPos,shoulderPos)
-    let shoulderToElbow = new THREE.Vector3().subVectors(elbowPos,shoulderPos)
 
     let angle = new THREE.Vector3().copy(new THREE.Vector3().subVectors(effPos,shoulderPos)).angleTo(new THREE.Vector3().subVectors(elbowPos,shoulderPos)) 
     let normal = new THREE.Vector3().crossVectors(shoulderToIK,shoulderToPV).normalize()
-    let upv = new THREE.Vector3().crossVectors(shoulderToElbow,normal)
     let shoulderAimVector = new THREE.Vector3().copy(shoulderToIK).multiplyScalar(Math.cos(angle)).add(new THREE.Vector3().crossVectors(normal,shoulderToIK).multiplyScalar(Math.sin(angle))) //Rodrigues formula
+    let upv = new THREE.Vector3().crossVectors(shoulderAimVector,normal)
     aimConstraint(shoulder,shoulderAimVector,upv,parent,true,new THREE.Vector3(-1,0,0),new THREE.Vector3(0,0,-1))
 }
